@@ -3,8 +3,8 @@
 #define ENABLE 2
 #define ENCODER_A 3 //OUTPUT (amarillo)
 #define ENCODER_B 7 //OUTPUT (blanco)
-#define PWM_1 6 // 6 unido a 5 canal 7
-#define PWM_2 8 // 8 unido a 4 canal 5
+#define PWM_1 8 // 8 unido a 4 canal 5
+#define PWM_2 6 // 6 unido a 5 canal 7
 #define PWM_DUTY_CYCLE 2100 
 #define REVOLUCIONES 3591.84
 
@@ -12,31 +12,33 @@
 #define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
 #define clock_A 42000000
 
+#define voltage 9
+
 int channel1 = 0;
 int channel2 = 0;
 
-double dutyCycle = 0;
-double dutyAct = 0;
-int pulses = 0;
+volatile int pulses = 0;
 int n_pulses = 0;
 int previous_state = 0;
-int iteraciones = 0; 
-int voltage = 5; // voltaje del experimento
-double valores[1201];
+volatile int iteraciones = 0; 
+volatile double valores[1201];
+//int voltage = 5; // voltaje del experimento
 
 void setup() {
   Serial.begin(115200);
+ 
   pinMode(ENABLE, OUTPUT);
   pinMode(ENCODER_A, INPUT);
   pinMode(ENCODER_B, INPUT);
+  pinMode(PWM_1, OUTPUT);
+  pinMode(PWM_2, OUTPUT);
+  
   attachInterrupt(digitalPinToInterrupt(ENCODER_A), getChange, CHANGE);//pin, funcion, LOW/HIGH/CHANGE/RISING/FALLING 
   attachInterrupt(digitalPinToInterrupt(ENCODER_B), getChange, CHANGE);
   
   digitalWrite(ENABLE, HIGH);
-  pinMode(PWM_1, OUTPUT);
-  analogWrite(PWM_1, 0);
-  
   PWM_Configuration();
+  setVoltage(voltage);
 }
 
 //conectar puentes del PWM con diferentes canales 
@@ -57,13 +59,12 @@ void PWM_Configuration (){
           g_APinDescription[PWM_2].ulPin,
           g_APinDescription[PWM_2].ulPinConfiguration);   
 
-
     channel1 = g_APinDescription[PWM_1].ulPWMChannel;
     channel2 = g_APinDescription[PWM_2].ulPWMChannel;
     // PWHM1
     PWMC_ConfigureChannel(PWM_INTERFACE, channel1, 1, 0, 0);  
     PWMC_SetPeriod(PWM_INTERFACE, channel1, PWM_DUTY_CYCLE); 
-    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); // entre -2100 , 2100 f= CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); // entre -2100 , 2100 f = CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
     PWMC_EnableChannel(PWM_INTERFACE, channel1);
     // PWHM2
     PWMC_ConfigureChannel(PWM_INTERFACE, channel2, 1, 0, 0);
@@ -71,24 +72,15 @@ void PWM_Configuration (){
     PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // de 0 a 2100
     PWMC_EnableChannel(PWM_INTERFACE, channel2);
      
-    Timer1.attachInterrupt(moving).setPeriod(600).start();
+    Timer1.attachInterrupt(moving).setPeriod(1000).start();
 }
 // muestra: contador de muestras, contador de pulsos
 void loop() {
   if (iteraciones >= 1200){
-    print();
     Timer1.stop();
-    while(1);
+    print(); 
+    iteraciones = 0;
   }
-  
-  /*if (n_pulses != pulses)
-   {
-      n_pulses = pulses;
-      Serial.println(2*PI*pulses/REVOLUCIONES); 
-      Serial.println(pulses);  
-      Serial.println(iteraciones);
-      Serial.println(voltage);  
-   }*/
 }
 
 int getState(){
@@ -128,26 +120,20 @@ void setVoltage(double v){
 
 //interrupcion timer
 void moving (){
-  if (iteraciones < 600) {
-    setVoltage(voltage);
+  if (iteraciones <= 600) {
+    valores[iteraciones] = pulses;
   }
   else {
-    setVoltage(0);  
+    setVoltage(0);
+    valores[iteraciones] = pulses;
   }
-  valores[iteraciones] = pulses;
   iteraciones++;
 }
 
 void print() {
-  int i;
-  for(int i = 0; i < 1202 ; i++){
+  for(int i = 0; i < 1201 ; i++){
       Serial.print(i);
       Serial.print(" ");
       Serial.println(valores[i]);
    }
 }
-
-
-
-
-
