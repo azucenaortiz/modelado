@@ -1,22 +1,28 @@
 #include <DueTimer.h>
 
 #define ENABLE 2
-#define INT_A 4
-#define INT_B 5
 #define ENCODER_A 3 //OUTPUT (amarillo)
 #define ENCODER_B 7 //OUTPUT (blanco)
-#define PWM_1 6 //unido a 5
-#define PWM_2 8 //unido a 4
+#define PWM_1 6 // 6 unido a 5 canal 7
+#define PWM_2 8 // 8 unido a 4 canal 5
+#define PWM_DUTY_CYCLE 2100 
 #define REVOLUCIONES 3591.84
 
 #define FREQUENCY 20000 //funciona como un filtro paso bajo, por tanto, hay que subir la frecuencia (1k) porque es demasiado baja
 #define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
+#define clock_A 42000000
+
+int channel1 = 0;
+int channel2 = 0;
 
 double dutyCycle = 0;
 double dutyAct = 0;
 int pulses = 0;
 int n_pulses = 0;
 int previous_state = 0;
+int iteraciones = 0; 
+int voltage = 5; // voltaje del experimento
+double valores[1201];
 
 void setup() {
   Serial.begin(115200);
@@ -25,9 +31,11 @@ void setup() {
   pinMode(ENCODER_B, INPUT);
   attachInterrupt(digitalPinToInterrupt(ENCODER_A), getChange, CHANGE);//pin, funcion, LOW/HIGH/CHANGE/RISING/FALLING 
   attachInterrupt(digitalPinToInterrupt(ENCODER_B), getChange, CHANGE);
-
+  
+  digitalWrite(ENABLE, HIGH);
   pinMode(PWM_1, OUTPUT);
   analogWrite(PWM_1, 0);
+  
   PWM_Configuration();
 }
 
@@ -35,33 +43,52 @@ void setup() {
 
 void PWM_Configuration (){
     pmc_enable_periph_clk(PWM_INTERFACE_ID);
-    PWMC_ConfigureClocks(PWM_FREQUENCY * PWM_MAX_DUTY_CYCLE, 0, VARIANT_MCK); 
-    PIO_Configure(g_APinDescription[PWM_2].pPort,
+    PWMC_ConfigureClocks(clock_A, clock_A, VARIANT_MCK); 
+    
+    PIO_Configure(
+          g_APinDescription[PWM_1].pPort,
+          g_APinDescription[PWM_1].ulPinType,
+          g_APinDescription[PWM_1].ulPin,
+          g_APinDescription[PWM_1].ulPinConfiguration);
+          
+    PIO_Configure(
+          g_APinDescription[PWM_2].pPort,
           g_APinDescription[PWM_2].ulPinType,
           g_APinDescription[PWM_2].ulPin,
-          g_APinDescription[PWM_2].ulPinConfiguration);
-      PWMC_ConfigureChannel(PWM_INTERFACE, 0, PWM_CMR_CPRE_CLKA, 0, 0);
-      PWMC_SetPeriod(PWM_INTERFACE, 0, PWM_MAX_DUTY_CYCLE);
-      PWMC_SetDutyCycle(PWM_INTERFACE, 0, 100);
-      PWMC_EnableChannel(PWM_INTERFACE, 0);
+          g_APinDescription[PWM_2].ulPinConfiguration);   
+
+
+    channel1 = g_APinDescription[PWM_1].ulPWMChannel;
+    channel2 = g_APinDescription[PWM_2].ulPWMChannel;
+    // PWHM1
+    PWMC_ConfigureChannel(PWM_INTERFACE, channel1, 1, 0, 0);  
+    PWMC_SetPeriod(PWM_INTERFACE, channel1, PWM_DUTY_CYCLE); 
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); // entre -2100 , 2100 f= CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
+    PWMC_EnableChannel(PWM_INTERFACE, channel1);
+    // PWHM2
+    PWMC_ConfigureChannel(PWM_INTERFACE, channel2, 1, 0, 0);
+    PWMC_SetPeriod(PWM_INTERFACE, channel2, PWM_DUTY_CYCLE); 
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // de 0 a 2100
+    PWMC_EnableChannel(PWM_INTERFACE, channel2);
+     
+    Timer1.attachInterrupt(moving).setPeriod(600).start();
 }
-
+// muestra: contador de muestras, contador de pulsos
 void loop() {
-
-  digitalWrite(ENABLE, HIGH);
-  if (n_pulses != pulses)
+  if (iteraciones >= 1200){
+    print();
+    Timer1.stop();
+    while(1);
+  }
+  
+  /*if (n_pulses != pulses)
    {
       n_pulses = pulses;
-      Serial.println(2*PI*pulses/REVOLUCIONES);      
-   }
-}
-
-//mirar esto
-void setVoltage(double duty){
-  dutyCycle=duty;
-  dutyAct = FREQUENCY * duty/ 100;
-  PWMC_SetDutyCycle(PWM_INTERFACE, 0, dutyAct);
-  
+      Serial.println(2*PI*pulses/REVOLUCIONES); 
+      Serial.println(pulses);  
+      Serial.println(iteraciones);
+      Serial.println(voltage);  
+   }*/
 }
 
 int getState(){
@@ -83,5 +110,44 @@ void getChange(){
 
   previous_state = actual_state;  
 }
+
+void setVoltage(double v){
+  if (v > 0){
+     PWMC_SetDutyCycle(PWM_INTERFACE, channel1, ((PWM_DUTY_CYCLE/12)*v)); 
+     PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); 
+  }
+  else if (v < 0){
+     PWMC_SetDutyCycle(PWM_INTERFACE, channel2, ((PWM_DUTY_CYCLE/12)*-v)); 
+     PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); 
+  }
+  else {
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); 
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0);     
+  }
+}
+
+//interrupcion timer
+void moving (){
+  if (iteraciones < 600) {
+    setVoltage(voltage);
+  }
+  else {
+    setVoltage(0);  
+  }
+  valores[iteraciones] = pulses;
+  iteraciones++;
+}
+
+void print() {
+  int i;
+  for(int i = 0; i < 1202 ; i++){
+      Serial.print(i);
+      Serial.print(" ");
+      Serial.println(valores[i]);
+   }
+}
+
+
+
 
 
