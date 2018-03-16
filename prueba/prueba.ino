@@ -11,7 +11,7 @@
 #define FREQUENCY 20000 //funciona como un filtro paso bajo, por tanto, hay que subir la frecuencia (1k) porque es demasiado baja
 #define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
 #define clock_A 42000000
-
+#define Nexp 7
 #define voltage 9
 
 int channel1 = 0;
@@ -21,7 +21,8 @@ volatile int pulses = 0;
 int n_pulses = 0;
 int previous_state = 0;
 volatile int iteraciones = 0; 
-volatile double valores[1201];
+volatile int experimentos = 0; 
+volatile double valores[1201][Nexp+1];
 //int voltage = 5; // voltaje del experimento
 
 void setup() {
@@ -76,9 +77,10 @@ void PWM_Configuration (){
 }
 // muestra: contador de muestras, contador de pulsos
 void loop() {
-  if (iteraciones >= 1200){
-    Timer1.stop();
+  if (iteraciones >= 1200 && experimentos==Nexp-1){
+    //Timer1.stop();
     print(); 
+    //Serial.println("FIN");
     iteraciones = 0;
   }
 }
@@ -120,20 +122,50 @@ void setVoltage(double v){
 
 //interrupcion timer
 void moving (){
-  if (iteraciones <= 600) {
-    valores[iteraciones] = pulses;
+  //Serial.print("it");
+  //Serial.println(iteraciones);
+  //Serial.println(experimentos);
+  if (iteraciones==1200 && experimentos==Nexp-1){
+    valores[iteraciones][experimentos] = pulses;
+    setVoltage(0);    
+    Timer1.stop();
+  }
+  else if (iteraciones==1200){
+    valores[iteraciones][experimentos] = pulses;
+   //Serial.println("exp+1");
+    experimentos ++;
+    //Serial.println(experimentos);
+    iteraciones=0;
+    pulses=0;
+  }
+  else if (iteraciones <= 600) {
+    setVoltage(voltage);
+    if(iteraciones == 0 && pulses!=0)
+      iteraciones--;
+    else
+      valores[iteraciones][experimentos] = pulses;
   }
   else {
     setVoltage(0);
-    valores[iteraciones] = pulses;
+    valores[iteraciones][experimentos] = pulses;
   }
-  iteraciones++;
+    iteraciones++;
 }
 
 void print() {
-  for(int i = 0; i < 1201 ; i++){
-      Serial.print(i);
-      Serial.print(" ");
-      Serial.println(valores[i]);
-   }
+  for(int i = 0; i < 1201 ; i++){//recorre iteraciones
+    float media=0;
+     for(int j=0; j<Nexp ; j++){//recorre exp
+        media+=float(valores[i][j])/float(Nexp);
+       /* Serial.print(i);
+        Serial.print(" ");
+        Serial.println(valores[i][j]);
+        */
+     }
+     
+     Serial.print(i);
+     Serial.print(" ");
+     Serial.println(media,6);
+     
+  }
 }
