@@ -12,7 +12,7 @@
 #define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
 #define clock_A 42000000
 #define Nexp 7
-#define voltage 9
+#define voltage 12
 
 int channel1 = 0;
 int channel2 = 0;
@@ -157,7 +157,11 @@ void print() {
     float media=0;
      for(int j=0; j<Nexp ; j++){//recorre exp
         media+=float(valores[i][j])/float(Nexp);
-       /* Serial.print(i);
+        /*
+        Serial.print("exp ");
+        Serial.print(j);
+        Serial.print(" itr ");
+        Serial.print(i);
         Serial.print(" ");
         Serial.println(valores[i][j]);
         */
