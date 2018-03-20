@@ -12,7 +12,7 @@
 #define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
 #define clock_A 42000000
 #define Nexp 7
-#define voltage 12
+#define voltage 9
 
 int channel1 = 0;
 int channel2 = 0;
@@ -39,7 +39,8 @@ void setup() {
   
   digitalWrite(ENABLE, HIGH);
   PWM_Configuration();
-  setVoltage(voltage);
+  Timer1.attachInterrupt(moving).setPeriod(1000).start();
+
 }
 
 //conectar puentes del PWM con diferentes canales 
@@ -73,7 +74,6 @@ void PWM_Configuration (){
     PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // de 0 a 2100
     PWMC_EnableChannel(PWM_INTERFACE, channel2);
      
-    Timer1.attachInterrupt(moving).setPeriod(1000).start();
 }
 // muestra: contador de muestras, contador de pulsos
 void loop() {

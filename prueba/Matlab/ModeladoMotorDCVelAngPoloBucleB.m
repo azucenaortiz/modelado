@@ -38,12 +38,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function  [pM, KM, Gzero,J,VeqV, a,b]=ModeladoMotorDCVelAngPoloBucleB
 %%%%%%%%%%%%%%%%%%%%%%%
-TensionVector=[1 2 3 4 5 6 7 8 9];
+TensionVector=[1 2 3 4 5 6 7 8 9 10 11 12];
 %TensionVector=[9];
 TensionVectorL=length(TensionVector);
 DuracionSubida=0.6;% segundos
 Periodo=0.001;% en segundos
-CPR=12;% pulsos/vuelta
+CPR=48;% pulsos/vuelta
 z1=0.5;% ponderación de los polos de subida y bajada
 opCurvas=[1 1 1];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
