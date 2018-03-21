@@ -40,7 +40,6 @@ void setup() {
   digitalWrite(ENABLE, HIGH);
   PWM_Configuration();
   Timer1.attachInterrupt(moving).setPeriod(1000).start();
-
 }
 
 //conectar puentes del PWM con diferentes canales 

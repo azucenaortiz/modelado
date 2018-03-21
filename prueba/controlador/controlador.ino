@@ -15,9 +15,9 @@
 
 #define Nexp 7
 #define voltage 8
-#define Kp 30.7496
-//Kp1=0.2009 Kp07=0.4100 Kp03=2.2322 Kp01=20.0897 //Con reductora Kp1=1506.7  Kp03=167.4145 Kp07=30.7496 Kp1=15.0673
-#define Referencia (2)*PI
+#define Kp 15.0673
+//Kp1=0.2009 Kp07=0.4100 Kp03=2.2322 Kp01=20.0897 //Con reductora Kp01=1506.7  Kp03=167.4145 Kp07=30.7496 Kp1=15.0673
+#define Referencia (1)*PI
 
 int channel1 = 0;
 int channel2 = 0;
@@ -45,7 +45,7 @@ void setup() {
   
   digitalWrite(ENABLE, HIGH);
   PWM_Configuration();
-  setVoltage(voltage);
+  Timer1.attachInterrupt(moving).setPeriod(1000).start();
 }
 
 //conectar puentes del PWM con diferentes canales 
@@ -79,7 +79,6 @@ void PWM_Configuration (){
     PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // de 0 a 2100
     PWMC_EnableChannel(PWM_INTERFACE, channel2);
      
-    Timer1.attachInterrupt(moving).setPeriod(1000).start();
 }
 // muestra: contador de muestras, contador de pulsos
 void loop() {
@@ -128,26 +127,37 @@ void setVoltage(double v){
 
 //interrupcion timer
 void moving (){
-  double error= Referencia - pulses*2*PI/REVOLUCIONES;
+  double error= Referencia - double(pulses)*2*PI/REVOLUCIONES;
   double realimentacion= error*Kp;
-  //Serial.print("REFERENCIA - POS=");
- /* Serial.print(Referencia);
-  Serial.print("-");
-  Serial.print(pulses*2*PI/REVOLUCIONES);
-  Serial.print("=");*/
-  Serial.println(error);
-  if(abs(error)<=0.001){
-    setVoltage(0);
-    Timer1.stop(); 
-  }
-  else if(realimentacion > 12) {
+  if(realimentacion > 12) {
      realimentacion = 12;
-  } else if (realimentacion < -12) {
+     setVoltage(realimentacion);
+  }else if (realimentacion < -12) {
      realimentacion = -12;
+     setVoltage(realimentacion);
   }
   else
-  setVoltage(realimentacion);
-  
+    setVoltage(realimentacion);
+    
+  if (iteraciones==1200 && experimentos==Nexp-1){
+    valores[iteraciones][experimentos] = pulses;    
+    Timer1.stop();
+  }
+  else if (iteraciones==1200){
+    valores[iteraciones][experimentos] = pulses;
+   //Serial.println("exp+1");
+    experimentos ++;
+    //Serial.println(experimentos);
+    iteraciones=0;
+    pulses=0;
+  }
+  else {
+    if(iteraciones == 0 && pulses!=0)
+      iteraciones--;
+    else
+      valores[iteraciones][experimentos] = pulses;
+  }
+    iteraciones++;
 }
 
 void print() {
