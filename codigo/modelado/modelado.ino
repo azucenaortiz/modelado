@@ -8,38 +8,37 @@
 #define PWM_DUTY_CYCLE 2100 
 #define REVOLUCIONES 3591.84
 
-#define FREQUENCY 20000 //funciona como un filtro paso bajo, por tanto, hay que subir la frecuencia (1k) porque es demasiado baja
-#define time 600 // 600 ms de subida y 600 ms de bajada. Llega al régimen permanente
 #define clock_A 42000000
 #define Nexp 7
 #define voltage 9
 
-int channel1 = 0;
+int channel1 = 0;//luego se le asignará un canal
 int channel2 = 0;
 
-volatile int pulses = 0;
-int n_pulses = 0;
-int previous_state = 0;
-volatile int iteraciones = 0; 
-volatile int experimentos = 0; 
-volatile double valores[1201][Nexp+1];
-//int voltage = 5; // voltaje del experimento
+volatile int pulses = 0;//contador de pulsos del encoder
+int previous_state = 0;//variable para contar pulsos
+volatile int iteraciones = 0;//contador de de muestras por experimento
+volatile int experimentos = 0;//contador de experimentos realizados
+volatile double valores[1201][Nexp+1];//array que guarda los valores
+
 
 void setup() {
   Serial.begin(115200);
  
+  //configuracion de pines
   pinMode(ENABLE, OUTPUT);
   pinMode(ENCODER_A, INPUT);
   pinMode(ENCODER_B, INPUT);
   pinMode(PWM_1, OUTPUT);
   pinMode(PWM_2, OUTPUT);
-  
+
+  //Interrupciones de lectura de cambio de flancos en el encoder
   attachInterrupt(digitalPinToInterrupt(ENCODER_A), getChange, CHANGE);//pin, funcion, LOW/HIGH/CHANGE/RISING/FALLING 
   attachInterrupt(digitalPinToInterrupt(ENCODER_B), getChange, CHANGE);
   
-  digitalWrite(ENABLE, HIGH);
-  PWM_Configuration();
-  Timer1.attachInterrupt(moving).setPeriod(1000).start();
+  digitalWrite(ENABLE, HIGH);//activar enable 
+  PWM_Configuration(); //Configuracion pwm
+  Timer1.attachInterrupt(moving).setPeriod(1000).start();//interrupción cíclica que marca la velocidad
 }
 
 //conectar puentes del PWM con diferentes canales 
@@ -60,23 +59,23 @@ void PWM_Configuration (){
           g_APinDescription[PWM_2].ulPin,
           g_APinDescription[PWM_2].ulPinConfiguration);   
 
-    channel1 = g_APinDescription[PWM_1].ulPWMChannel;
-    channel2 = g_APinDescription[PWM_2].ulPWMChannel;
+    channel1 = g_APinDescription[PWM_1].ulPWMChannel;//configuracion de canal pwm1
+    channel2 = g_APinDescription[PWM_2].ulPWMChannel;//configuracion de canal pwm2
     // PWHM1
     PWMC_ConfigureChannel(PWM_INTERFACE, channel1, 1, 0, 0);  
     PWMC_SetPeriod(PWM_INTERFACE, channel1, PWM_DUTY_CYCLE); 
-    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); // entre -2100 , 2100 f = CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel1, 0); // entre 0 , 2100 f = CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
     PWMC_EnableChannel(PWM_INTERFACE, channel1);
     // PWHM2
     PWMC_ConfigureChannel(PWM_INTERFACE, channel2, 1, 0, 0);
     PWMC_SetPeriod(PWM_INTERFACE, channel2, PWM_DUTY_CYCLE); 
-    PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // de 0 a 2100
+    PWMC_SetDutyCycle(PWM_INTERFACE, channel2, 0); // entre 0 , 2100 f = CLK_usado / PWM_DUTY_CYCLE=42000000/2100=20kHz
     PWMC_EnableChannel(PWM_INTERFACE, channel2);
      
 }
 // muestra: contador de muestras, contador de pulsos
 void loop() {
-  if (iteraciones >= 1200 && experimentos==Nexp-1){
+  if (iteraciones >= 1200 && experimentos==Nexp-1){//ha terminado de medir todo 
     //Timer1.stop();
     print(); 
     //Serial.println("FIN");
@@ -84,6 +83,7 @@ void loop() {
   }
 }
 
+//devuelve estado actual del encoder respecto a los dos pulsos
 int getState(){
   int Enc_A = digitalRead(ENCODER_A);
   int Enc_B = digitalRead(ENCODER_B);
@@ -94,6 +94,7 @@ int getState(){
   else if (Enc_A == HIGH && Enc_B == LOW) return 4;
 }
 
+//segun los cambios de estados, suma hacia un sentido y resta hacia el otro
 void getChange(){
   int actual_state = getState();
   if( actual_state == 2 && previous_state == 1 || actual_state == 3 && previous_state == 2 || actual_state == 4 && previous_state == 3 || actual_state == 1 && previous_state == 4)
@@ -104,6 +105,7 @@ void getChange(){
   previous_state = actual_state;  
 }
 
+//Asigna un pwm proporcional a la tensión deseada, si es positivo por un canal y si es negativo por el otro
 void setVoltage(double v){
   if (v > 0){
      PWMC_SetDutyCycle(PWM_INTERFACE, channel1, ((PWM_DUTY_CYCLE/12)*v)); 
@@ -121,30 +123,25 @@ void setVoltage(double v){
 
 //interrupcion timer
 void moving (){
-  //Serial.print("it");
-  //Serial.println(iteraciones);
-  //Serial.println(experimentos);
-  if (iteraciones==1200 && experimentos==Nexp-1){
+  if (iteraciones==1200 && experimentos==Nexp-1){//se han tomado todos los valores
     valores[iteraciones][experimentos] = pulses;
     setVoltage(0);    
     Timer1.stop();
   }
-  else if (iteraciones==1200){
+  else if (iteraciones==1200){//Se ha terminado un experimento y pasa al siguiente
     valores[iteraciones][experimentos] = pulses;
-   //Serial.println("exp+1");
     experimentos ++;
-    //Serial.println(experimentos);
     iteraciones=0;
     pulses=0;
   }
-  else if (iteraciones <= 600) {
+  else if (iteraciones <= 600) {//600 con tension
     setVoltage(voltage);
-    if(iteraciones == 0 && pulses!=0)
+    if(iteraciones == 0 && pulses!=0)//quita la primera muestra del encoder en caso de ser distinta de 0
       iteraciones--;
     else
       valores[iteraciones][experimentos] = pulses;
   }
-  else {
+  else {//600 sin tension
     setVoltage(0);
     valores[iteraciones][experimentos] = pulses;
   }
@@ -156,19 +153,9 @@ void print() {
     float media=0;
      for(int j=0; j<Nexp ; j++){//recorre exp
         media+=float(valores[i][j])/float(Nexp);
-        /*
-        Serial.print("exp ");
-        Serial.print(j);
-        Serial.print(" itr ");
-        Serial.print(i);
-        Serial.print(" ");
-        Serial.println(valores[i][j]);
-        */
      }
-     
      Serial.print(i);
      Serial.print(" ");
-     Serial.println(media,6);
-     
+     Serial.println(media,6);     
   }
 }
